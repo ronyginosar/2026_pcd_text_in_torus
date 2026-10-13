@@ -3,7 +3,8 @@
 let torusTexture;
 // let message = "PCD@TLV@29.10@18:00@";
 let message = "@PCD@TLV";
-let bg_message = "× פרוססינג דיי ת״א × פרוססינג דיי ת״א";
+// let bg_message = "18:00 × פרוססינג דיי ת״א × 29.10 × פרוססינג דיי ת״א × ";
+let bg_message = "29.10 × 18:00 × פרוססינג דיי ת״א × ";
 // let bg_message = "ABC";
 let messageWidth;
 let torusTextColor = "#D4B2FE";
