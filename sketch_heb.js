@@ -15,7 +15,9 @@ let backgroundColor = "#F2F3FF";
 let backgroundTextColor = "#291B85";
 // let backgroundTextColor = "black";
 let textPtSize = 45; // target size; actual size is nudged so whole tiles fill the torus
-let fittedTorusPtSize = textPtSize; // set by measureMessageStepPx each frame
+let fittedTorusPtSize = textPtSize; // set once by measureMessageStepPx
+let cachedMessageStepPx = 0; // measured once the CSS font is ready; re-measure if message/textPtSize change
+let isTorusFontReady = false; // gates torus text drawing until the measurement is valid
 let textBgSize = 100;
 let radius = 135;
 let tubeRadius = 75;
@@ -64,6 +66,7 @@ function setup() {
   // whole-pixel size so tile fitting divides the real canvas width
   torusTexture = createGraphics(Math.round(2 * PI * radius), Math.round(2 * PI * tubeRadius)); // this looks better on the torus
   torusTexture.fill(torusTextColor);  
+  waitForTorusFont(torusTexture);
 
   backgroundGraphics = createGraphics(width*2, height*2);
   backgroundGraphics.textAlign(LEFT, TOP);
@@ -149,7 +152,6 @@ function applyTorusTextStyle(graphics, ptSize = fittedTorusPtSize) {
  * Scales the font size (fittedTorusPtSize) instead of the gap, so tiles stay flush.
  */
 function measureMessageStepPx(graphics) {
-  // TODO measure once after font load with async, currently every frame
   applyTorusTextStyle(graphics, textPtSize); // measure at the target size
   const advanceWidth =
     graphics.textWidth(message) || graphics.measureText(message).width;
@@ -164,11 +166,25 @@ function measureMessageStepPx(graphics) {
   return graphics.width / tileCount;
 }
 
+/**
+ * Waits for the browser's CSS "Gottlieb" face (p5.variableFont adds it after preload),
+ * then measures the step once. p5 v1 doesn't await setup, so draw() checks isTorusFontReady.
+ */
+async function waitForTorusFont(graphics) {
+  const fontQuery = `${TORUS_FONT_WEIGHT} ${textPtSize}px Gottlieb`;
+  // load() resolves with [] if the @font-face isn't registered yet, so retry each animation frame
+  while ((await document.fonts.load(fontQuery)).length === 0) {
+    await new Promise(requestAnimationFrame);
+  }
+  cachedMessageStepPx = measureMessageStepPx(graphics);
+  isTorusFontReady = cachedMessageStepPx > 0;
+}
+
 
   function textTexture(graphics, animateBothAxes) {
-  let xstep = measureMessageStepPx(graphics);
+  if (!isTorusFontReady) return; // also avoids % 0 and an infinite loop below
+  let xstep = cachedMessageStepPx;
   messageWidth = xstep;
-  if (!xstep) return; // font not loaded yet; avoids % 0 and an infinite loop below
   let ystep = graphics.height / ROW_COUNT; // exact vertical period
 
   let offsetX = animateBothAxes ? -(frameCount * SCROLL_SPEED_X) : 0;
