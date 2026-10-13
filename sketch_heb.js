@@ -6,19 +6,26 @@ let message = "@PCD@TLV";
 let bg_message = "× פרוססינג דיי ת״א × פרוססינג דיי ת״א";
 // let bg_message = "ABC";
 let messageWidth;
-// const CYCLE = 20; // higher is slower
-let textColor = "#D4B2FE";
+let torusTextColor = "#D4B2FE";
 let torusColor = "#2B13C5";
 // let backgroundColor = "#5501A4";
-let textPtSize = 50;
+let backgroundColor = "#F2F3FF";
+// let backgroundColor = "white";
+// let backgroundTextColor = "#2B13C5";
+let backgroundTextColor = "#291B85";
+// let backgroundTextColor = "black";
+let textPtSize = 45;
 let textBgSize = 100;
 let radius = 135;
 let tubeRadius = 75;
+let zPushback = -180;
 
-const SCROLL_SPEED_X = 1.7;  // pixels per frame
-const SCROLL_SPEED_Y = 1.5;
+// const SCROLL_SPEED_X = 1.7;  // pixels per frame
+// const SCROLL_SPEED_Y = 1.5;
+const SCROLL_SPEED_X = 0.7;  // pixels per frame
+const SCROLL_SPEED_Y = 0.5;
 const ROW_COUNT = 9; // choose so rows fill height evenly
-const TORUS_FONT_WEIGHT = 700;
+const TORUS_FONT_WEIGHT = 900;
 const COLUMN_GAP_PX = 0; // extra space between repeated message tiles
 
 const BG_FONT_WEIGHT = 500;
@@ -52,32 +59,22 @@ function setup() {
   // 1080 x 1350
   let screenScale = 2;
   createCanvas(1080/screenScale, 1350/screenScale, WEBGL);
-  pixelDensity(4); // set once here: saveGif() drops to density 1 while recording, so draw() must not reset it
-  // torusTexture = createGraphics(width,height); // this looks better on a plane
+  // pixelDensity(4); // set once here: saveGif() drops to density 1 while recording, so draw() must not reset it
   torusTexture = createGraphics(2 * PI * radius, 2 * PI * tubeRadius); // this looks better on the torus
-  torusTexture.fill(textColor);
-  // note: if i use radius & tubeRadius, i probably need to adapt r as well
-  
+  torusTexture.fill(torusTextColor);  
 
-  backgroundGraphics = createGraphics(width, height);
+  backgroundGraphics = createGraphics(width*2, height*2);
   backgroundGraphics.textAlign(LEFT, TOP);
-  backgroundGraphics.fill(255);
-  
-
-
-
+  backgroundGraphics.fill(backgroundTextColor);
 }
 
 function draw() {
   noStroke();
-  background(242, 243, 255);
-  
+  background(backgroundColor);
   drawInterleavedBackgroundRows(backgroundGraphics);
 
-
-
   push();
-  translate(0, 0, -180);
+  translate(0, 0, zPushback);
   texture(backgroundGraphics);
   plane(width, height);
   pop();
@@ -86,8 +83,7 @@ function draw() {
   // 'camera' angle
   // debugMode();
   orbitControl()
-  // or - sliders...
-  // or - https://stackoverflow.com/questions/68242398/how-to-return-the-camera-position-in-p5js
+  // or - sliders... or - https://stackoverflow.com/questions/68242398/how-to-return-the-camera-position-in-p5js
   rotateX(-PI / 4);
   rotateY(-PI / 8);
   rotateZ(-PI / 8);
@@ -116,7 +112,7 @@ function draw() {
 
 /** Fills the buffer top-to-bottom with rows of bg_message; even rows scroll left, odd rows scroll right. */
 function drawInterleavedBackgroundRows(graphics) {
-  graphics.background(0);
+  graphics.background(backgroundColor);
   graphics.textFont("GottliebBG", textBgSize, { wght: BG_FONT_WEIGHT });
 
   const tileWidth = graphics.textWidth(bg_message) + BG_TILE_GAP_PX;
@@ -143,16 +139,19 @@ function drawInterleavedBackgroundRows(graphics) {
 /** Applies Gottlieb + color on the 2D texture buffer (must match measure + draw). */
 function applyTorusTextStyle(graphics) {
   graphics.textAlign(LEFT, TOP);
-  // graphics.textFont("Gottlieb", textPtSize, { wght: TORUS_FONT_WEIGHT });
-  
+  graphics.textFont("Gottlieb", textPtSize, { wght: TORUS_FONT_WEIGHT });
 }
 
 /** Horizontal tile period for the scrolling grid (measure after font is active). */
 function measureMessageStepPx(graphics) {
+  // TODO measure once after font load with async, currently every frame
   applyTorusTextStyle(graphics);
   const advanceWidth =
     graphics.textWidth(message) || graphics.measureText(message).width;
-  return Math.ceil(advanceWidth + COLUMN_GAP_PX);
+  let naturalStep = advanceWidth + COLUMN_GAP_PX; // COLUMN_GAP_PX is minimum gap
+  let tileCount = Math.max(1 , Math.floor(graphics.width / naturalStep)); // 1 fallback
+  let gap = (graphics.width - tileCount * advanceWidth) / tileCount;
+  return advanceWidth + gap;
 }
 
 
