@@ -14,7 +14,8 @@ let backgroundColor = "#F2F3FF";
 // let backgroundTextColor = "#2B13C5";
 let backgroundTextColor = "#291B85";
 // let backgroundTextColor = "black";
-let textPtSize = 45;
+let textPtSize = 45; // target size; actual size is nudged so whole tiles fill the torus
+let fittedTorusPtSize = textPtSize; // set by measureMessageStepPx each frame
 let textBgSize = 100;
 let radius = 135;
 let tubeRadius = 75;
@@ -60,7 +61,8 @@ function setup() {
   let screenScale = 2;
   createCanvas(1080/screenScale, 1350/screenScale, WEBGL);
   // pixelDensity(4); // set once here: saveGif() drops to density 1 while recording, so draw() must not reset it
-  torusTexture = createGraphics(2 * PI * radius, 2 * PI * tubeRadius); // this looks better on the torus
+  // whole-pixel size so tile fitting divides the real canvas width
+  torusTexture = createGraphics(Math.round(2 * PI * radius), Math.round(2 * PI * tubeRadius)); // this looks better on the torus
   torusTexture.fill(torusTextColor);  
 
   backgroundGraphics = createGraphics(width*2, height*2);
@@ -137,28 +139,36 @@ function drawInterleavedBackgroundRows(graphics) {
 }
 
 /** Applies Gottlieb + color on the 2D texture buffer (must match measure + draw). */
-function applyTorusTextStyle(graphics) {
+function applyTorusTextStyle(graphics, ptSize = fittedTorusPtSize) {
   graphics.textAlign(LEFT, TOP);
-  graphics.textFont("Gottlieb", textPtSize, { wght: TORUS_FONT_WEIGHT });
+  graphics.textFont("Gottlieb", ptSize, { wght: TORUS_FONT_WEIGHT });
 }
 
-/** Horizontal tile period for the scrolling grid (measure after font is active). */
+/**
+ * Horizontal tile period, fitted so a whole number of tiles wraps the torus seamlessly.
+ * Scales the font size (fittedTorusPtSize) instead of the gap, so tiles stay flush.
+ */
 function measureMessageStepPx(graphics) {
   // TODO measure once after font load with async, currently every frame
-  applyTorusTextStyle(graphics);
+  applyTorusTextStyle(graphics, textPtSize); // measure at the target size
   const advanceWidth =
     graphics.textWidth(message) || graphics.measureText(message).width;
-  let naturalStep = advanceWidth + COLUMN_GAP_PX; // COLUMN_GAP_PX is minimum gap
-  let tileCount = Math.max(1 , Math.floor(graphics.width / naturalStep)); // 1 fallback
-  let gap = (graphics.width - tileCount * advanceWidth) / tileCount;
-  return advanceWidth + gap;
+  if (!advanceWidth) return 0; // font not ready yet
+
+  // nearest whole tile count (round, not floor, keeps the size change small)
+  const naturalStep = advanceWidth + COLUMN_GAP_PX;
+  const tileCount = Math.max(1, Math.round(graphics.width / naturalStep));
+
+  // width scales linearly with size: shrink/grow so tileCount tiles fill the width exactly
+  fittedTorusPtSize = textPtSize * graphics.width / (tileCount * naturalStep);
+  return graphics.width / tileCount;
 }
 
 
   function textTexture(graphics, animateBothAxes) {
   let xstep = measureMessageStepPx(graphics);
   messageWidth = xstep;
-  if (!xstep) console.warn("message step is 0 — font may not be loaded yet");
+  if (!xstep) return; // font not loaded yet; avoids % 0 and an infinite loop below
   let ystep = graphics.height / ROW_COUNT; // exact vertical period
 
   let offsetX = animateBothAxes ? -(frameCount * SCROLL_SPEED_X) : 0;
@@ -183,7 +193,7 @@ function measureMessageStepPx(graphics) {
       if (y < 0) {
         graphics.text(message, x, y + graphics.height);
       }
-      if (y + textPtSize > graphics.height) {
+      if (y + fittedTorusPtSize > graphics.height) {
         graphics.text(message, x, y - graphics.height);
       }
     }
