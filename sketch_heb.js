@@ -1,8 +1,20 @@
 // based on https://openprocessing.org/sketch/924707
 
 let torusTexture;
+
 // let message = "PCD@TLV@29.10@18:00@";
-let message = "@PCD@TLV";
+// let message = "@PCD@TLV";
+let message = "lineup ";
+// let message = "רוני גינוסר";
+// let message = "תמיר פומרנץ ";
+// let message = "מתי מריאנסקי ";
+// let message = "איל גרוס ";
+// let message = "ליאור בן גיא ";
+// let message = "שירה לוי × שחף פלד × הנייה חליל × ";
+// let message = "לור פדר ";
+// let message = "מתי מריאנסקי ";
+
+
 // let bg_message = "18:00 × פרוססינג דיי ת״א × 29.10 × פרוססינג דיי ת״א × ";
 let bg_message = "29.10 × 18:00 × פרוססינג דיי ת״א × ";
 // let bg_message = "ABC";
@@ -69,7 +81,7 @@ function setup() {
   torusTexture.fill(torusTextColor);  
   waitForTorusFont(torusTexture);
 
-  backgroundGraphics = createGraphics(width*2, height*2);
+  backgroundGraphics = createGraphics(width*3, height*3);
   backgroundGraphics.textAlign(LEFT, TOP);
   backgroundGraphics.fill(backgroundTextColor);
 }
@@ -82,7 +94,7 @@ function draw() {
   push();
   translate(0, 0, zPushback);
   texture(backgroundGraphics);
-  plane(width, height);
+  plane(width*2, height*2);
   pop();
 
 
