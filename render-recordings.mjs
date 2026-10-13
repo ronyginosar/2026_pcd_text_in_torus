@@ -25,24 +25,39 @@ const POLL_INTERVAL_MS = 2000;               // how often to rescan the folder
 const STALL_TIMEOUT_MS = 60000;              // render anyway if frames are missing and no new part arrived for this long
 const KEEP_EXTRACTED_FRAMES = false;         // keep <session>-frames/ after rendering
 const H264_CRF = 16;                         // lower = better quality / bigger file (18 ≈ visually lossless)
+const H264_MAX_BITRATE_MBPS = 20;            // caps CRF peaks — Instagram 1080p sweet spot is 15–20 Mbps
 const H264_PRESET = "slow";                  // slower = smaller file at the same quality
 const PRORES_PROFILE = 3;                    // 0 proxy, 1 LT, 2 standard, 3 HQ, 4 4444
 const MANIFEST_SUFFIX = ".recording.json";
 // ──────────────────────────────────────────────────────────────────────────────
 
+// Rec. 709 SDR, limited range: tags written into every output
+const REC709_TAG_ARGS = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"];
+
 /** ffmpeg output definitions; each gets the shared image-sequence input. */
 const CODEC_OUTPUTS = {
   h264: {
     filenameSuffix: ".mp4",
-    args: ["-c:v", "libx264", "-crf", String(H264_CRF), "-preset", H264_PRESET,
-      "-pix_fmt", "yuv420p", "-movflags", "+faststart"],
+    pixelFormat: "yuv420p",
+    args: ["-c:v", "libx264", "-profile:v", "high", "-crf", String(H264_CRF), "-preset", H264_PRESET,
+      "-maxrate", `${H264_MAX_BITRATE_MBPS}M`, "-bufsize", `${H264_MAX_BITRATE_MBPS * 2}M`,
+      "-movflags", "+faststart"],
   },
   prores: {
     filenameSuffix: "-prores.mov",
-    args: ["-c:v", "prores_ks", "-profile:v", String(PRORES_PROFILE),
-      "-pix_fmt", "yuv422p10le", "-vendor", "apl0"],
+    pixelFormat: "yuv422p10le",
+    args: ["-c:v", "prores_ks", "-profile:v", String(PRORES_PROFILE), "-vendor", "apl0"],
   },
 };
+
+/**
+ * Filter chain: drop frames to the output fps, pad to even size, then convert RGB → YUV
+ * with the BT.709 matrix (ffmpeg's default for RGB input is BT.601, which shifts colors).
+ */
+const buildVideoFilter = (outputFramerate, pixelFormat) =>
+  [`fps=${outputFramerate}`, "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+    "scale=out_color_matrix=bt709:out_range=tv", `format=${pixelFormat}`,
+    "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv"].join(",");
 
 /** Parses --dir, --codecs, --once, --keep-frames. */
 const parseArguments = (argv) => {
@@ -124,10 +139,12 @@ const renderSession = async ({ watchDir, manifest, partNames, codecs, shouldKeep
   console.log(`\n▶ ${sessionName}: extracting ${partNames.length} part(s)…`);
   await extractFrames(watchDir, partNames, framesDir);
   const { inputPattern, startNumber, frameTotal } = await detectFramePattern(framesDir, imageExtension);
-  console.log(`  ${frameTotal} frames @ ${manifest.framerate} fps (${manifest.width}×${manifest.height})`);
+  // older manifests have no outputFramerate → keep the capture rate
+  const outputFramerate = Math.min(manifest.outputFramerate ?? manifest.framerate, manifest.framerate);
+  console.log(`  ${frameTotal} frames @ ${manifest.framerate} fps → ${outputFramerate} fps (${manifest.width}×${manifest.height})`);
 
   for (const codec of codecs) {
-    const { filenameSuffix, args } = CODEC_OUTPUTS[codec];
+    const { filenameSuffix, pixelFormat, args } = CODEC_OUTPUTS[codec];
     const outputPath = path.join(watchDir, `${sessionName}${filenameSuffix}`);
     console.log(`  rendering ${path.basename(outputPath)}…`);
     await runCommand("ffmpeg", [
@@ -135,9 +152,9 @@ const renderSession = async ({ watchDir, manifest, partNames, codecs, shouldKeep
       "-framerate", String(manifest.framerate),
       "-start_number", String(startNumber),
       "-i", path.join(framesDir, inputPattern),
-      // safety net: H.264 / 4:2:0 needs even dimensions
-      "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+      "-vf", buildVideoFilter(outputFramerate, pixelFormat),
       ...args,
+      ...REC709_TAG_ARGS,
       outputPath,
     ], { shouldInheritOutput: true });
   }

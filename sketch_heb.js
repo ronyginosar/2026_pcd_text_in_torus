@@ -4,9 +4,9 @@ let torusTexture;
 
 // let message = "PCD@TLV@29.10@18:00@";
 // let message = "@PCD@TLV";
-let message = "lineup ";
+// let message = "lineup ";
 // let message = "רוני גינוסר";
-// let message = "תמיר פומרנץ ";
+let message = "תמיר פומרנץ ";
 // let message = "מתי מריאנסקי ";
 // let message = "איל גרוס ";
 // let message = "ליאור בן גיא ";
@@ -75,6 +75,8 @@ function setup() {
   // 1080 x 1350
   let screenScale = 2;
   createCanvas(1080/screenScale, 1350/screenScale, WEBGL);
+  // always export at 1080×1350 (Instagram feed), whatever the display's pixel density
+  if (typeof Recorder !== "undefined") Recorder.configure({ exportPixelDensity: screenScale });
   // pixelDensity(4); // set once here: saveGif() drops to density 1 while recording, so draw() must not reset it
   // whole-pixel size so tile fitting divides the real canvas width
   torusTexture = createGraphics(Math.round(2 * PI * radius), Math.round(2 * PI * tubeRadius)); // this looks better on the torus
