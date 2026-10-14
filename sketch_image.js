@@ -1,36 +1,19 @@
 // based on https://openprocessing.org/sketch/924707
 
-let torusTexture;
 
-// let message = "PCD@TLV@29.10@18:00@";
-// let message = "@PCD@TLV";
-// let message = "lineup ";
-// let message = "רוני גינוסר";
-// let message = "תמיר פומרנץ ";
-// let message = "מתי מריאנסקי ";
-// let message = "איל גרוס ";
-// let message = "ליאור בן גיא ";
-let message = "שירה לוי × שחף פלד × הנייה חליל × ";
-// let message = "לור פדר ";
-// let message = "מתי מריאנסקי ";
-
-
-let infobartext = "The vibe is off";
+let message = "lineup ";
 
 
 
-// let bg_message = "18:00 × פרוססינג דיי ת״א × 29.10 × פרוססינג דיי ת״א × ";
+let infobartext = "למה אתה תמיד יושב על נקודות";
+
+
 let bg_message = "29.10 × 18:00 × פרוססינג דיי ת״א × ";
-// let bg_message = "ABC";
 let messageWidth;
 let torusTextColor = "#D4B2FE";
 let torusColor = "#2B13C5";
-// let backgroundColor = "#5501A4";
 let backgroundColor = "#F2F3FF";
-// let backgroundColor = "white";
-// let backgroundTextColor = "#2B13C5";
 let backgroundTextColor = "#291B85";
-// let backgroundTextColor = "black";
 let textPtSize = 45; // target size; actual size is nudged so whole tiles fill the torus
 let fittedTorusPtSize = textPtSize; // set once by measureMessageStepPx
 let cachedMessageStepPx = 0; // measured once the CSS font is ready; re-measure if message/textPtSize change
@@ -40,8 +23,6 @@ let radius = 135;
 let tubeRadius = 75;
 let zPushback = -180;
 
-// const SCROLL_SPEED_X = 1.7;  // pixels per frame
-// const SCROLL_SPEED_Y = 1.5;
 const SCROLL_SPEED_X = 0.7;  // pixels per frame
 const SCROLL_SPEED_Y = 0.5;
 const ROW_COUNT = 9; // choose so rows fill height evenly
@@ -56,7 +37,7 @@ const BG_TILE_GAP_PX = 0;     // extra space between repeated bg_message tiles
 
 const INFO_BAR_WIDTH = 450;   // blue name bar under the profile image
 const INFO_BAR_HEIGHT = 200;
-const INFO_TEXT_SIZE = 40;
+const INFO_TEXT_SIZE = 50;
 const INFO_TEXT_Z_OFFSET = 1; // lifts the text slightly in front of the bar to avoid z-fighting
 
 function preload() {
@@ -80,7 +61,7 @@ function preload() {
 
 
 
-  profile_img = loadImage('presenter_images/tamir.png');
+  profile_img = loadImage('presenter_images/eyal.jpg');
 }
 
 function setup() {
@@ -117,15 +98,6 @@ function draw() {
   pop();
 
 
-  // 'camera' angle
-  // debugMode();
-  orbitControl();
-  // or - sliders... or - https://stackoverflow.com/questions/68242398/how-to-return-the-camera-position-in-p5js
-  // rotateX(-PI / 4);
-  // rotateY(-PI / 8);
-  // rotateZ(-PI / 8);
-
-
   let img_size = 450;
   let margins = 50;
   
@@ -144,15 +116,17 @@ function draw() {
 
   // redraw the label fresh each frame (clear() keeps the buffer transparent)
   infoGraphics.clear();
-  // infoGraphics.textFont("Gottlieb", INFO_TEXT_SIZE, { wght: 900 });
-  infoGraphics.textFont(myFont, INFO_TEXT_SIZE);
+  infoGraphics.textFont("Gottlieb", INFO_TEXT_SIZE, { wght: 900 });
+  // infoGraphics.textFont(myFont, INFO_TEXT_SIZE);
   infoGraphics.fill("white");
+  infoGraphics.textLeading(45);
   // text box spans the whole bar: p5 wraps inside it and CENTER/CENTER centers the block
-  infoGraphics.text(infobartext, 0, 0, INFO_BAR_WIDTH, INFO_BAR_HEIGHT);
+  infoGraphics.text(infobartext, 0, 5, INFO_BAR_WIDTH, INFO_BAR_HEIGHT);
 
 
   infoGraphics.textFont("Gottlieb", 20, { wght: 300 });
-  infoGraphics.text("הרצאה", 0, 0, INFO_BAR_WIDTH, INFO_BAR_HEIGHT/3); //3
+  infoGraphics.text("הרצאה", 0, 0, INFO_BAR_WIDTH, INFO_BAR_HEIGHT/4); //3
+  infoGraphics.textAlign(CENTER, CENTER);
 
   // same center as the bar, nudged toward the camera so it renders on top
   push();
