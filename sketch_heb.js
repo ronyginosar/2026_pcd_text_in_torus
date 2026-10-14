@@ -1,32 +1,42 @@
 // based on https://openprocessing.org/sketch/924707
 
-let torusTexture;
+
 
 // let message = "PCD@TLV@29.10@18:00@";
-// let message = "@PCD@TLV";
+let message = "@PCD@TLV";
 // let message = "lineup ";
-// let message = "רוני גינוסר";
-let message = "תמיר פומרנץ ";
+// let message = "רוני גינוסר ";
+// let message = "תמיר פומרנץ ";
 // let message = "מתי מריאנסקי ";
 // let message = "איל גרוס ";
 // let message = "ליאור בן גיא ";
 // let message = "שירה לוי × שחף פלד × הנייה חליל × ";
 // let message = "לור פדר ";
 // let message = "מתי מריאנסקי ";
+// let message = "ת״א תרבות דה וינצ׳י ";
 
-
-// let bg_message = "18:00 × פרוססינג דיי ת״א × 29.10 × פרוססינג דיי ת״א × ";
+let torusTexture;
 let bg_message = "29.10 × 18:00 × פרוססינג דיי ת״א × ";
-// let bg_message = "ABC";
 let messageWidth;
+
+// primary color set
+// let torusTextColor = "#D4B2FE";
+// let torusColor = "#2B13C5";
+// let backgroundColor = "#F2F3FF";
+// let backgroundTextColor = "#291B85";
+
+// secondary color set
+// let torusTextColor = "#F2F3FF";
+// let torusColor = "#D4B2FE";
+// let backgroundColor = "#2B13C5";
+// let backgroundTextColor = "#1C125B";
+
+// accent color set
 let torusTextColor = "#D4B2FE";
 let torusColor = "#2B13C5";
-// let backgroundColor = "#5501A4";
-let backgroundColor = "#F2F3FF";
-// let backgroundColor = "white";
-// let backgroundTextColor = "#2B13C5";
-let backgroundTextColor = "#291B85";
-// let backgroundTextColor = "black";
+let backgroundColor = "black";
+let backgroundTextColor = "F2F3FF";
+
 let textPtSize = 45; // target size; actual size is nudged so whole tiles fill the torus
 let fittedTorusPtSize = textPtSize; // set once by measureMessageStepPx
 let cachedMessageStepPx = 0; // measured once the CSS font is ready; re-measure if message/textPtSize change

@@ -1,5 +1,6 @@
 /**
  * p5.recorder.js — reusable, frame-exact video / image-sequence recorder for p5.js (global mode).
+ * Part of p5-HD-recorder: https://github.com/ronyginosar/p5-HD-recorder (MIT)
  * Thin wrapper around p5.capture (https://github.com/tapioca24/p5.capture).
  *
  * Setup (index.html), in this order:
@@ -10,20 +11,31 @@
  *
  * Usage: click the floating Record / Stop button (it's DOM, so it never appears in the recording).
  * Optional per-sketch overrides from setup():
- *   Recorder.configure({ durationSeconds: 8, exportPixelDensity: 2 });
+ *   Recorder.configure({ preset: "trueHD", durationSeconds: 8, exportPixelDensity: 2 });
+ *
+ * Export presets (RECORDER_EXPORT_PRESET): "instagram" = ≤1080 px wide, 30 fps, 16 Mbps;
+ * "trueHD" = sketch resolution, capture fps, 40 Mbps. Both are tagged Rec. 709 SDR.
+ * Capture always runs at RECORDER_FRAMERATE; a lower output fps drops frames evenly, so motion speed is kept.
  *
  * Each recording is a "session" that downloads:
- *   <session>-part001.zip …        PNG frames (p5.capture)
- *   <session>-web.mp4              quick H.264 encoded in the browser (WebCodecs), if enabled + supported,
- *                                  at RECORDER_OUTPUT_FRAMERATE, tagged Rec. 709
+ *   <session>-part001.zip …        PNG frames (p5.capture), at full capture fps
+ *   <session>-web.mp4              quick H.264 encoded in the browser (WebCodecs), if enabled + supported
  *   <session>.recording.json       manifest — tells render-recordings.mjs the session is complete
  * Run `node render-recordings.mjs` in a terminal to turn the zips into <session>.mp4 + <session>-prores.mov.
  */
 
 // ─── Tuneable parameters ──────────────────────────────────────────────────────
+// Export toggle: "instagram" (Instagram's best HD) or "trueHD" (full fps / bitrate / resolution, for archive & editing).
+const RECORDER_EXPORT_PRESET = "instagram";
+const RECORDER_EXPORT_PRESETS = {
+  // Instagram re-encodes anything above this, so match it: ≤1080 px wide, 30 fps, 15–20 Mbps
+  instagram: { outputFramerate: 30, browserMp4BitrateMbps: 16, maxOutputWidth: 1080 },
+  // null = keep the capture fps / the sketch's resolution
+  trueHD: { outputFramerate: null, browserMp4BitrateMbps: 40, maxOutputWidth: null },
+};
+
 const RECORDER_FORMAT = "png";              // "png" | "jpg" | "webp" (zipped sequences) | "mp4" | "webm" | "gif"
 const RECORDER_FRAMERATE = 60;              // capture fps: one captured frame per draw() (the sketch's native speed)
-const RECORDER_OUTPUT_FRAMERATE = 30;       // delivered video fps (Instagram: 30); frames are dropped evenly so motion speed is kept
 const RECORDER_DURATION_SECONDS = null;     // auto-stop after N seconds of output; null = stop manually
 const RECORDER_EXPORT_PIXEL_DENSITY = null; // e.g. 2 → 1080×1350 from a 540×675 canvas; null = keep sketch's density
 const RECORDER_RESET_FRAMECOUNT = true;     // restart frameCount at 0 so frameCount-driven animations are reproducible
@@ -37,7 +49,6 @@ const RECORDER_WRITE_MANIFEST = true;       // download <session>.recording.json
 
 // in-browser H.264 MP4 alongside the frames (WebCodecs + mp4-muxer; ProRes needs the terminal script)
 const RECORDER_BROWSER_MP4 = true;
-const RECORDER_BROWSER_MP4_BITRATE_MBPS = 16;     // Instagram 1080p sweet spot is 15–20 Mbps; higher just gets re-compressed
 const RECORDER_BROWSER_MP4_KEYFRAME_SECONDS = 2;  // keyframe interval (seeking granularity)
 // Rec. 709 SDR tag written into the MP4 (canvas frames otherwise come out tagged sRGB)
 const RECORDER_BROWSER_MP4_COLOR_SPACE = { primaries: "bt709", transfer: "bt709", matrix: "bt709", fullRange: false };
@@ -57,9 +68,12 @@ const Recorder = (() => {
 
   // Runtime settings; start from the constants above, overridable via Recorder.configure().
   const settings = {
+    preset: RECORDER_EXPORT_PRESET,
     format: RECORDER_FORMAT,
     framerate: RECORDER_FRAMERATE,
-    outputFramerate: RECORDER_OUTPUT_FRAMERATE,
+    outputFramerate: null,       // null = from the preset
+    browserMp4BitrateMbps: null, // null = from the preset
+    maxOutputWidth: null,        // null = from the preset
     durationSeconds: RECORDER_DURATION_SECONDS,
     exportPixelDensity: RECORDER_EXPORT_PIXEL_DENSITY,
     shouldResetFrameCount: RECORDER_RESET_FRAMECOUNT,
@@ -69,7 +83,6 @@ const Recorder = (() => {
     filenamePrefix: RECORDER_FILENAME_PREFIX,
     shouldWriteManifest: RECORDER_WRITE_MANIFEST,
     shouldEncodeBrowserMp4: RECORDER_BROWSER_MP4,
-    browserMp4BitrateMbps: RECORDER_BROWSER_MP4_BITRATE_MBPS,
   };
 
   let densityBeforeRecording = null; // restored once capturing ends
@@ -144,8 +157,20 @@ const Recorder = (() => {
 
   const isWebCodecsAvailable = () => typeof VideoEncoder !== "undefined" && typeof VideoFrame !== "undefined";
 
-  /** Output fps, never above the capture fps. */
-  const getOutputFramerate = () => Math.min(settings.outputFramerate || settings.framerate, settings.framerate);
+  /** Active preset; unknown names fall back to trueHD (with a warning). */
+  const getPreset = () => {
+    const preset = RECORDER_EXPORT_PRESETS[settings.preset];
+    if (preset) return preset;
+    console.warn(`p5.recorder: unknown preset "${settings.preset}" — using "trueHD"`);
+    return RECORDER_EXPORT_PRESETS.trueHD;
+  };
+
+  /** Output fps (explicit setting → preset → capture fps), never above the capture fps. */
+  const getOutputFramerate = () =>
+    Math.min(settings.outputFramerate ?? getPreset().outputFramerate ?? settings.framerate, settings.framerate);
+
+  const getBrowserMp4BitrateMbps = () => settings.browserMp4BitrateMbps ?? getPreset().browserMp4BitrateMbps;
+  const getMaxOutputWidth = () => settings.maxOutputWidth ?? getPreset().maxOutputWidth;
 
   /** Keep 1 of every N captured frames, e.g. 60 → 30 fps keeps every 2nd frame. */
   const getFrameStep = () => Math.max(1, Math.round(settings.framerate / getOutputFramerate()));
@@ -159,7 +184,7 @@ const Recorder = (() => {
         codec,
         width,
         height,
-        bitrate: settings.browserMp4BitrateMbps * 1e6,
+        bitrate: getBrowserMp4BitrateMbps() * 1e6,
         framerate: getOutputFramerate(),
         latencyMode: "quality",
         avc: { format: "avc" }, // length-prefixed NALUs, required by MP4
@@ -268,6 +293,7 @@ const Recorder = (() => {
     if (!settings.shouldWriteManifest || !IMAGE_SEQUENCE_FORMATS.includes(settings.format)) return;
     const manifest = {
       session: finishedSession.name,
+      preset: settings.preset,
       format: settings.format,
       framerate: settings.framerate,
       outputFramerate: getOutputFramerate(),
@@ -343,10 +369,13 @@ const Recorder = (() => {
     isStarting = true;
     updateButton();
     const sketch = p5.instance;
-    // bump density only for the recording; restored in finishSession()
-    if (settings.exportPixelDensity && settings.exportPixelDensity !== sketch.pixelDensity()) {
+    // change density only for the recording (export density, capped by the preset's max width); restored in finishSession()
+    const maxOutputWidth = getMaxOutputWidth();
+    let targetDensity = settings.exportPixelDensity || sketch.pixelDensity();
+    if (maxOutputWidth) targetDensity = Math.min(targetDensity, maxOutputWidth / sketch.width);
+    if (targetDensity !== sketch.pixelDensity()) {
       densityBeforeRecording = sketch.pixelDensity();
-      sketch.pixelDensity(settings.exportPixelDensity);
+      sketch.pixelDensity(targetDensity);
     }
 
     // even dimensions keep H.264 encoders happy
@@ -362,7 +391,8 @@ const Recorder = (() => {
 
     await capture.start(buildCaptureOptions(width, height));
     isStarting = false;
-    console.log(`p5.recorder: recording "${session.name}" at ${width}×${height} ${settings.format}` +
+    console.log(`p5.recorder: recording "${session.name}" [${settings.preset}] at ${width}×${height} ${settings.format}, ` +
+      `${settings.framerate} → ${getOutputFramerate()} fps` +
       (browserEncoder ? " + browser MP4" : ""));
   };
 
