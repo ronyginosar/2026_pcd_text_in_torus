@@ -1,33 +1,13 @@
-// based on https://openprocessing.org/sketch/924707
-
-
-let message = "lineup ";
-
-
-
 let infobartext = "למה אתה תמיד יושב על נקודות";
 
-
 let bg_message = "29.10 × 18:00 × פרוססינג דיי ת״א × ";
-let messageWidth;
-let torusTextColor = "#D4B2FE";
-let torusColor = "#2B13C5";
 let backgroundColor = "#F2F3FF";
 let backgroundTextColor = "#291B85";
-let textPtSize = 45; // target size; actual size is nudged so whole tiles fill the torus
-let fittedTorusPtSize = textPtSize; // set once by measureMessageStepPx
-let cachedMessageStepPx = 0; // measured once the CSS font is ready; re-measure if message/textPtSize change
-let isTorusFontReady = false; // gates torus text drawing until the measurement is valid
 let textBgSize = 100;
-let radius = 135;
-let tubeRadius = 75;
-let zPushback = -180;
+let zPushback = -180; // pushes the background plane away from the camera
 
-const SCROLL_SPEED_X = 0.7;  // pixels per frame
-const SCROLL_SPEED_Y = 0.5;
-const ROW_COUNT = 9; // choose so rows fill height evenly
-const TORUS_FONT_WEIGHT = 900;
-const COLUMN_GAP_PX = 0; // extra space between repeated message tiles
+let img_size = 450;
+let margins = 50;
 
 const BG_FONT_WEIGHT = 500;
 const BG_SCROLL_SPEED_X = 1;  // pixels per frame for background rows
@@ -40,8 +20,13 @@ const INFO_BAR_HEIGHT = 200;
 const INFO_TEXT_SIZE = 50;
 const INFO_TEXT_Z_OFFSET = 1; // lifts the text slightly in front of the bar to avoid z-fighting
 
+let myFont;
+let profile_img;
+let backgroundGraphics; // offscreen buffer for the scrolling background rows
+let infoGraphics;       // offscreen buffer for the info bar text
+
+/** Loads the fonts and the profile image; "Gottlieb" is registered as a CSS variable font by p5.variableFont. */
 function preload() {
-  // myFont = loadFont("rag_typeface_/RAG_GottliebVF.ttf");
 
   myFont = loadFont("BBHBartle-Regular.ttf");
 
@@ -52,30 +37,18 @@ function preload() {
         "Gottlieb"
     );
 
-    loadFont(
-      "rag_typeface_/RAG_GottliebVF.ttf",
-      () => {},
-      () => {},
-      "GottliebBG"
-  );
-
-
-
   profile_img = loadImage('presenter_images/eyal.jpg');
 }
 
+/** Creates the canvas and the offscreen buffers for the background and info bar. */
 function setup() {
-  // createCanvas(windowWidth, windowHeight,WEBGL);
-  // 1080 x 1350
   let screenScale = 2;
   createCanvas(1080/screenScale, 1350/screenScale, WEBGL);
   // always export at 1080×1350 (Instagram feed), whatever the display's pixel density
   if (typeof Recorder !== "undefined") Recorder.configure({ exportPixelDensity: screenScale });
-  // pixelDensity(4); // set once here: saveGif() drops to density 1 while recording, so draw() must not reset it
-  // whole-pixel size so tile fitting divides the real canvas width
-  torusTexture = createGraphics(Math.round(2 * PI * radius), Math.round(2 * PI * tubeRadius)); // this looks better on the torus
-  torusTexture.fill(torusTextColor);  
-  waitForTorusFont(torusTexture);
+
+  // resize once here instead of every frame
+  profile_img.resize(img_size, 0);
 
   backgroundGraphics = createGraphics(width*3, height*3);
   backgroundGraphics.textAlign(LEFT, TOP);
@@ -86,6 +59,7 @@ function setup() {
   infoGraphics.textAlign(CENTER, CENTER);
 }
 
+/** Draws the scrolling background plane, then the profile image and the info bar on top. */
 function draw() {
   noStroke();
   background(backgroundColor);
@@ -97,9 +71,6 @@ function draw() {
   plane(width*2, height*2);
   pop();
 
-
-  let img_size = 450;
-  let margins = 50;
   
   // center the graphics on canvas
   translate(-(width-img_size) / 2 , -(height-img_size)/2 , 0);
@@ -107,7 +78,6 @@ function draw() {
   imageMode(CENTER);
   profile_img.resize(img_size, 0);
   image(profile_img, margins, margins);
-  // image(profile_img, margins, margins, img_size, img_size);
 
   const infoBarY = height - img_size + margins*1.8 ;
   rectMode(CENTER);
@@ -123,7 +93,7 @@ function draw() {
   // text box spans the whole bar: p5 wraps inside it and CENTER/CENTER centers the block
   infoGraphics.text(infobartext, 0, 5, INFO_BAR_WIDTH, INFO_BAR_HEIGHT);
 
-
+  // small label centered in the top quarter of the bar
   infoGraphics.textFont("Gottlieb", 20, { wght: 300 });
   infoGraphics.text("הרצאה", 0, 0, INFO_BAR_WIDTH, INFO_BAR_HEIGHT/4); //3
   infoGraphics.textAlign(CENTER, CENTER);
@@ -134,13 +104,12 @@ function draw() {
   image(infoGraphics, margins, infoBarY, INFO_BAR_WIDTH, INFO_BAR_HEIGHT);
   pop();
 
-
 }
 
 /** Fills the buffer top-to-bottom with rows of bg_message; even rows scroll left, odd rows scroll right. */
 function drawInterleavedBackgroundRows(graphics) {
   graphics.background(backgroundColor);
-  graphics.textFont("GottliebBG", textBgSize, { wght: BG_FONT_WEIGHT });
+  graphics.textFont("Gottlieb", textBgSize, { wght: BG_FONT_WEIGHT });
 
   const tileWidth = graphics.textWidth(bg_message) + BG_TILE_GAP_PX;
   if (!tileWidth) return; // font not ready yet
@@ -160,92 +129,5 @@ function drawInterleavedBackgroundRows(graphics) {
     for (let tileX = startX; tileX < graphics.width; tileX += tileWidth) {
       graphics.text(bg_message, tileX, rowY);
     }
-  }
-}
-
-/** Applies Gottlieb + color on the 2D texture buffer (must match measure + draw). */
-function applyTorusTextStyle(graphics, ptSize = fittedTorusPtSize) {
-  graphics.textAlign(LEFT, TOP);
-  graphics.textFont("Gottlieb", ptSize, { wght: TORUS_FONT_WEIGHT });
-}
-
-/**
- * Horizontal tile period, fitted so a whole number of tiles wraps the torus seamlessly.
- * Scales the font size (fittedTorusPtSize) instead of the gap, so tiles stay flush.
- */
-function measureMessageStepPx(graphics) {
-  applyTorusTextStyle(graphics, textPtSize); // measure at the target size
-  const advanceWidth =
-    graphics.textWidth(message) || graphics.measureText(message).width;
-  if (!advanceWidth) return 0; // font not ready yet
-
-  // nearest whole tile count (round, not floor, keeps the size change small)
-  const naturalStep = advanceWidth + COLUMN_GAP_PX;
-  const tileCount = Math.max(1, Math.round(graphics.width / naturalStep));
-
-  // width scales linearly with size: shrink/grow so tileCount tiles fill the width exactly
-  fittedTorusPtSize = textPtSize * graphics.width / (tileCount * naturalStep);
-  return graphics.width / tileCount;
-}
-
-/**
- * Waits for the browser's CSS "Gottlieb" face (p5.variableFont adds it after preload),
- * then measures the step once. p5 v1 doesn't await setup, so draw() checks isTorusFontReady.
- */
-async function waitForTorusFont(graphics) {
-  const fontQuery = `${TORUS_FONT_WEIGHT} ${textPtSize}px Gottlieb`;
-  // load() resolves with [] if the @font-face isn't registered yet, so retry each animation frame
-  while ((await document.fonts.load(fontQuery)).length === 0) {
-    await new Promise(requestAnimationFrame);
-  }
-  cachedMessageStepPx = measureMessageStepPx(graphics);
-  isTorusFontReady = cachedMessageStepPx > 0;
-}
-
-
-  function textTexture(graphics, animateBothAxes) {
-  if (!isTorusFontReady) return; // also avoids % 0 and an infinite loop below
-  let xstep = cachedMessageStepPx;
-  messageWidth = xstep;
-  let ystep = graphics.height / ROW_COUNT; // exact vertical period
-
-  let offsetX = animateBothAxes ? -(frameCount * SCROLL_SPEED_X) : 0;
-  let offsetY = animateBothAxes ? -(frameCount * SCROLL_SPEED_Y) : -(frameCount * SCROLL_SPEED_Y);
-    
-  offsetX = offsetX % xstep;
-  offsetY = offsetY % ystep;
-  if (offsetX > 0) offsetX -= xstep;
-  if (offsetY > 0) offsetY -= ystep;
-
-  graphics.background(torusColor);
-  applyTorusTextStyle(graphics);
-
-// text on torus
-  let count = 0;
-  for (let x = offsetX; x < graphics.width; x += xstep) {
-    for (let y = offsetY; y <= graphics.height; y += ystep) {
-      graphics.text(message, x, y);
-      // console.log(textWidth(message)) // debug
-
-      // torus seam wrap: off-top rows reappear at bottom, and vice versa
-      if (y < 0) {
-        graphics.text(message, x, y + graphics.height);
-      }
-      if (y + fittedTorusPtSize > graphics.height) {
-        graphics.text(message, x, y - graphics.height);
-      }
-    }
-    count++;
-  }
-}
-
-function keyTyped() {
-  // see example: https://editor.p5js.org/ronyginosar/sketches/mjLit_67t
-  if (key === "s") {
-    saveCanvas("myPoster.png");
-  }
-
-  if (key == "g") {
-    saveGif("myGif.gif", 1);
   }
 }
